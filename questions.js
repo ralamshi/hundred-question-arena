@@ -1,4 +1,7 @@
-// Default question bank — loaded if nothing in localStorage
+// 設定你的 Google 試算表 CSV 網址。如果留空，就會使用下方的預設題庫。
+window.GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS3GGhqV60I4liGtLBeZrY5SopikYnFIpw07ocaCq4MxJBtNJfaygp6pndOsuvu9VF07DVArz2NkC1t/pub?output=csv";
+
+// Default question bank — loaded if nothing in localStorage or Google Sheets
 window.DEFAULT_QUESTIONS = [
   {
     id: 1,

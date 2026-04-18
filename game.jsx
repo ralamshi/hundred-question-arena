@@ -4,16 +4,62 @@ const { useState, useEffect, useRef, useMemo } = React;
 const LETTERS = ['A', 'B', 'C', 'D'];
 const STORAGE_KEY = 'quiz_questions_v1';
 
-function loadQuestions() {
-  if (window.BankStore) return window.BankStore.getActiveQuestions();
-  return window.DEFAULT_QUESTIONS;
+async function fetchQuestions() {
+  const defaultQuestions = window.BankStore ? window.BankStore.getActiveQuestions() : window.DEFAULT_QUESTIONS;
+
+  if (!window.GOOGLE_SHEETS_CSV_URL) {
+    return defaultQuestions;
+  }
+
+  try {
+    const res = await fetch(window.GOOGLE_SHEETS_CSV_URL);
+    if (!res.ok) throw new Error('Fetch failed');
+    const text = await res.text();
+    const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+    
+    const parseCSVLine = (line) => {
+      const r = []; let cur = ''; let inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
+        else if (ch === ',' && !inQ) { r.push(cur); cur = ''; }
+        else cur += ch;
+      }
+      r.push(cur); return r.map(s => s.trim());
+    };
+
+    let startIndex = 0;
+    if (lines[0] && (lines[0].includes('問題') || lines[0].includes('Question'))) {
+      startIndex = 1;
+    }
+
+    const data = [];
+    for (let i = startIndex; i < lines.length; i++) {
+      const parts = parseCSVLine(lines[i]);
+      if (parts.length < 6) continue;
+      data.push({
+        id: i,
+        question: parts[0],
+        choices: [parts[1], parts[2], parts[3], parts[4]],
+        correct: parseInt(parts[5], 10) || 0,
+        points: parts[6] ? parseInt(parts[6], 10) : 10 * Math.pow(2, i - startIndex),
+        difficulty: parts[7] ? parseInt(parts[7], 10) : Math.min(5, Math.max(1, Math.floor((i - startIndex) / 2) + 1)),
+      });
+    }
+
+    if (data.length > 0) return data;
+    return defaultQuestions;
+  } catch (err) {
+    console.error('Failed to load Google Sheets CSV:', err);
+    return defaultQuestions;
+  }
 }
 
 function shuffleChoicesIfNeeded(q) {
   return q; // keep as authored
 }
 
-function Splash({ onStart, onAdmin, questionCount, activeBank, banks, onSelectBank }) {
+function Splash({ onStart, onAdmin, questionCount, activeBank, banks, onSelectBank, isLoading }) {
   return (
     <div className="splash">
       <div className="splash-logo">Q</div>
@@ -23,6 +69,8 @@ function Splash({ onStart, onAdmin, questionCount, activeBank, banks, onSelectBa
       <div className="splash-meta">
         四個選擇題。三條求助。<br/>
         答對一條，分數翻倍。答錯不扣分，繼續挑戰。
+        {isLoading && <div style={{marginTop: '1rem', color: 'var(--gold-400)'}}>正在從 Google 試算表載入最新題庫...</div>}
+        {!isLoading && window.GOOGLE_SHEETS_CSV_URL && <div style={{marginTop: '1rem', color: 'var(--ink-dim)', fontSize: 13}}>※ 已啟用線上雲端題庫 ※</div>}
       </div>
       {banks && banks.length > 0 && (
         <div className="splash-banks">
@@ -43,7 +91,9 @@ function Splash({ onStart, onAdmin, questionCount, activeBank, banks, onSelectBa
         </div>
       )}
       <div className="splash-actions">
-        <button className="btn primary" onClick={onStart}>開 始 遊 戲</button>
+        <button className="btn primary" onClick={onStart} disabled={isLoading || questionCount === 0}>
+          {isLoading ? '載 入 中...' : '開 始 遊 戲'}
+        </button>
         <button className="btn" onClick={onAdmin}>進 入 後 台</button>
       </div>
     </div>
@@ -303,7 +353,8 @@ function Confetti({ show }) {
 
 function App() {
   const [screen, setScreen] = useState('splash'); // splash | playing | gameover
-  const [questions, setQuestions] = useState(() => loadQuestions());
+  const [questions, setQuestions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [index, setIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
@@ -325,11 +376,27 @@ function App() {
     localStorage.setItem('quiz_muted', muted ? '1' : '0');
   }, [muted]);
 
-  // reload questions if returning from admin
+  // Load questions on mount and focus
   useEffect(() => {
-    const onFocus = () => setQuestions(loadQuestions());
+    let mounted = true;
+    setIsLoading(true);
+    fetchQuestions().then(qs => {
+      if (mounted) {
+        setQuestions(qs);
+        setIsLoading(false);
+      }
+    });
+
+    const onFocus = () => {
+      fetchQuestions().then(qs => {
+        if (mounted) setQuestions(qs);
+      });
+    };
     window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
+    return () => {
+      mounted = false;
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   const currentQ = questions[index];
@@ -337,7 +404,7 @@ function App() {
   function startGame() {
     window.QuizAudio.ensureCtx();
     window.QuizAudio.intro();
-    setQuestions(loadQuestions());
+    // questions are already loaded from the effect
     setIndex(0);
     setScore(0);
     setCorrectCount(0);
@@ -428,13 +495,16 @@ function App() {
   }
 
   if (screen === 'splash') {
-    const banks = window.BankStore ? window.BankStore.listBanks() : [];
-    const activeBank = window.BankStore ? window.BankStore.getActiveBank() : null;
+    const banks = window.BankStore && !window.GOOGLE_SHEETS_CSV_URL ? window.BankStore.listBanks() : [];
+    const activeBank = window.BankStore && !window.GOOGLE_SHEETS_CSV_URL ? window.BankStore.getActiveBank() : null;
     const handleSelectBank = (code) => {
-      window.BankStore.setActive(code);
-      setQuestions(loadQuestions());
+      if (window.BankStore) {
+        window.BankStore.setActive(code);
+        setIsLoading(true);
+        fetchQuestions().then(qs => { setQuestions(qs); setIsLoading(false); });
+      }
     };
-    return <Splash onStart={startGame} onAdmin={openAdmin} questionCount={questions.length} activeBank={activeBank} banks={banks} onSelectBank={handleSelectBank} />;
+    return <Splash onStart={startGame} onAdmin={openAdmin} questionCount={questions.length} activeBank={activeBank} banks={banks} onSelectBank={handleSelectBank} isLoading={isLoading} />;
   }
 
   return (
