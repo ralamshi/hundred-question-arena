@@ -87,7 +87,7 @@ function Splash({ onStart, onAdmin, questionCount, activeBank, banks, onSelectBa
               >
                 <span className="splash-bank-chip-code">{b.code}</span>
                 <span className="splash-bank-chip-name">{b.name}</span>
-                <span className="splash-bank-chip-count">{b.questions.length} 題</span>
+                <span className="splash-bank-chip-count">{b.questions ? `${b.questions.length} 題` : '雲端題庫'}</span>
               </button>
             ))}
           </div>
