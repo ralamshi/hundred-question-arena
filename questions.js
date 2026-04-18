@@ -1,5 +1,14 @@
-// 設定你的 Google 試算表 CSV 網址。如果留空，就會使用下方的預設題庫。
-window.GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS3GGhqV60I4liGtLBeZrY5SopikYnFIpw07ocaCq4MxJBtNJfaygp6pndOsuvu9VF07DVArz2NkC1t/pub?output=csv";
+// 你的 Google 試算表發布連結（注意結尾到 pub 即可，不含 ?output=csv...）
+window.GOOGLE_SHEETS_URL_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS3GGhqV60I4liGtLBeZrY5SopikYnFIpw07ocaCq4MxJBtNJfaygp6pndOsuvu9VF07DVArz2NkC1t/pub";
+
+// 你的各個題庫分頁設定
+window.GOOGLE_SHEETS_BANKS = [
+  { code: 'A', name: '題庫 一', gid: '1899886731' },
+  { code: 'B', name: '題庫 二', gid: '1832733584' },
+  { code: 'C', name: '題庫 三', gid: '1529631090' },
+  { code: 'D', name: '題庫 四', gid: '1690765520' },
+  { code: 'E', name: '題庫 五', gid: '743634446' },
+];
 
 // Default question bank — loaded if nothing in localStorage or Google Sheets
 window.DEFAULT_QUESTIONS = [

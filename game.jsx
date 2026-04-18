@@ -4,15 +4,18 @@ const { useState, useEffect, useRef, useMemo } = React;
 const LETTERS = ['A', 'B', 'C', 'D'];
 const STORAGE_KEY = 'quiz_questions_v1';
 
-async function fetchQuestions() {
+async function fetchQuestions(bankCode = 'A') {
   const defaultQuestions = window.BankStore ? window.BankStore.getActiveQuestions() : window.DEFAULT_QUESTIONS;
 
-  if (!window.GOOGLE_SHEETS_CSV_URL) {
+  if (!window.GOOGLE_SHEETS_URL_BASE || !window.GOOGLE_SHEETS_BANKS) {
     return defaultQuestions;
   }
 
+  const bankConfig = window.GOOGLE_SHEETS_BANKS.find(b => b.code === bankCode) || window.GOOGLE_SHEETS_BANKS[0];
+  const fetchUrl = `${window.GOOGLE_SHEETS_URL_BASE}?output=csv&gid=${bankConfig.gid}`;
+
   try {
-    const res = await fetch(window.GOOGLE_SHEETS_CSV_URL);
+    const res = await fetch(fetchUrl);
     if (!res.ok) throw new Error('Fetch failed');
     const text = await res.text();
     const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
@@ -70,7 +73,7 @@ function Splash({ onStart, onAdmin, questionCount, activeBank, banks, onSelectBa
         四個選擇題。三條求助。<br/>
         答對一條，分數翻倍。答錯不扣分，繼續挑戰。
         {isLoading && <div style={{marginTop: '1rem', color: 'var(--gold-400)'}}>正在從 Google 試算表載入最新題庫...</div>}
-        {!isLoading && window.GOOGLE_SHEETS_CSV_URL && <div style={{marginTop: '1rem', color: 'var(--ink-dim)', fontSize: 13}}>※ 已啟用線上雲端題庫 ※</div>}
+        {!isLoading && window.GOOGLE_SHEETS_URL_BASE && <div style={{marginTop: '1rem', color: 'var(--ink-dim)', fontSize: 13}}>※ 已啟用多重線上雲端題庫 ※</div>}
       </div>
       {banks && banks.length > 0 && (
         <div className="splash-banks">
@@ -353,6 +356,7 @@ function Confetti({ show }) {
 
 function App() {
   const [screen, setScreen] = useState('splash'); // splash | playing | gameover
+  const [activeBankCode, setActiveBankCode] = useState(() => (window.GOOGLE_SHEETS_BANKS && window.GOOGLE_SHEETS_BANKS[0]?.code) || 'A');
   const [questions, setQuestions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [index, setIndex] = useState(0);
@@ -380,7 +384,7 @@ function App() {
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
-    fetchQuestions().then(qs => {
+    fetchQuestions(activeBankCode).then(qs => {
       if (mounted) {
         setQuestions(qs);
         setIsLoading(false);
@@ -388,7 +392,7 @@ function App() {
     });
 
     const onFocus = () => {
-      fetchQuestions().then(qs => {
+      fetchQuestions(activeBankCode).then(qs => {
         if (mounted) setQuestions(qs);
       });
     };
@@ -397,7 +401,7 @@ function App() {
       mounted = false;
       window.removeEventListener('focus', onFocus);
     };
-  }, []);
+  }, [activeBankCode]);
 
   const currentQ = questions[index];
 
@@ -495,13 +499,18 @@ function App() {
   }
 
   if (screen === 'splash') {
-    const banks = window.BankStore && !window.GOOGLE_SHEETS_CSV_URL ? window.BankStore.listBanks() : [];
-    const activeBank = window.BankStore && !window.GOOGLE_SHEETS_CSV_URL ? window.BankStore.getActiveBank() : null;
+    const isCloud = !!window.GOOGLE_SHEETS_URL_BASE;
+    const banks = isCloud ? window.GOOGLE_SHEETS_BANKS : (window.BankStore ? window.BankStore.listBanks() : []);
+    const activeBank = isCloud 
+      ? window.GOOGLE_SHEETS_BANKS.find(b => b.code === activeBankCode)
+      : (window.BankStore ? window.BankStore.getActiveBank() : null);
+
     const handleSelectBank = (code) => {
-      if (window.BankStore) {
+      if (isCloud) {
+        setActiveBankCode(code);
+      } else if (window.BankStore) {
         window.BankStore.setActive(code);
-        setIsLoading(true);
-        fetchQuestions().then(qs => { setQuestions(qs); setIsLoading(false); });
+        setActiveBankCode(code);
       }
     };
     return <Splash onStart={startGame} onAdmin={openAdmin} questionCount={questions.length} activeBank={activeBank} banks={banks} onSelectBank={handleSelectBank} isLoading={isLoading} />;
@@ -523,7 +532,7 @@ function App() {
             <div className="brand-mark"></div>
             <div className="brand-text">
               <div className="brand-title">百問擂台</div>
-              <div className="brand-sub">Arena · 題庫 {window.BankStore ? window.BankStore.getActiveBank()?.code : 'A'}</div>
+              <div className="brand-sub">Arena · 題庫 {activeBankCode}</div>
             </div>
           </div>
           <div className="topbar-actions">
