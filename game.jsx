@@ -129,7 +129,7 @@ function Lifelines({ state, onUse, disabled }) {
   );
 }
 
-function Ladder({ questions, currentIndex, score, justPassed }) {
+function Ladder({ questions, currentIndex, score, justPassed, history }) {
   // Show highest question at top, Q1 at bottom (Millionaire-style ascending ladder)
   const ordered = questions.map((q, i) => ({q, i})).reverse();
   return (
@@ -138,11 +138,14 @@ function Ladder({ questions, currentIndex, score, justPassed }) {
       <div className="ladder">
         {ordered.map(({q, i}) => {
           const isCurrent = i === currentIndex;
-          const isPassed = i < currentIndex;
+          const isCorrect = history && history[i] === true;
+          const isWrong = history && history[i] === false;
+          const isPassed = !isCurrent && isCorrect;
+          const isFailed = !isCurrent && isWrong;
           const isMilestone = (i + 1) % 5 === 0;
           const isJustPassed = justPassed === i;
           return (
-            <div key={i} className={`rung ${isCurrent ? 'current' : ''} ${isPassed ? 'passed' : ''} ${isMilestone ? 'milestone' : ''} ${isJustPassed ? 'just-passed' : ''}`}>
+            <div key={i} className={`rung ${isCurrent ? 'current' : ''} ${isPassed ? 'passed' : ''} ${isFailed ? 'failed' : ''} ${isMilestone ? 'milestone' : ''} ${isJustPassed ? 'just-passed' : ''}`}>
               <span className="rung-num">{String(i + 1).padStart(2, '0')}</span>
               <span className="rung-pts">{q.points.toLocaleString()}</span>
             </div>
@@ -365,6 +368,7 @@ function App() {
   const [selected, setSelected] = useState(null);
   const [locked, setLocked] = useState(false);
   const [revealed, setRevealed] = useState(null); // {correct, picked}
+  const [history, setHistory] = useState({}); // { index: true(correct)/false(wrong) }
   const [eliminated, setEliminated] = useState([]);
   const [lifelines, setLifelines] = useState({fifty: false, audience: false, phone: false});
   const [modal, setModal] = useState(null); // 'audience' | 'phone'
@@ -415,6 +419,7 @@ function App() {
     setSelected(null);
     setLocked(false);
     setRevealed(null);
+    setHistory({});
     setEliminated([]);
     setLifelines({fifty: false, audience: false, phone: false});
     setScreen('playing');
@@ -445,6 +450,7 @@ function App() {
     setTimeout(() => {
       const isCorrect = selected === currentQ.correct;
       setRevealed({correct: currentQ.correct, picked: selected});
+      setHistory(h => ({...h, [index]: isCorrect}));
       if (isCorrect) {
         window.QuizAudio.correct();
         setFlash('correct');
@@ -581,7 +587,7 @@ function App() {
             </div>
           </div>
 
-          <Ladder questions={questions} currentIndex={index} score={score} justPassed={justPassed} />
+          <Ladder questions={questions} currentIndex={index} score={score} justPassed={justPassed} history={history} />
         </div>
       </div>
 

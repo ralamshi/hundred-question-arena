@@ -82,25 +82,26 @@ window.QuizAudio = (function() {
     drone.start(now);
     drone2.start(now);
 
-    // Heartbeat — schedule recurring kicks
-    let beat = now + 0.5;
+    // Ticking clock - one tick per second
+    let beat = now + 1.0;
     const beats = [];
+    let tickCount = 0;
     const scheduleBeats = () => {
       const ahead = ctx.currentTime + 4;
       while (beat < ahead) {
         const o = ctx.createOscillator();
         const g = ctx.createGain();
-        o.type = 'sine';
-        o.frequency.setValueAtTime(80, beat);
-        o.frequency.exponentialRampToValueAtTime(40, beat + 0.15);
+        o.type = 'square';
+        o.frequency.setValueAtTime(tickCount % 2 === 0 ? 1000 : 750, beat);
         g.gain.setValueAtTime(0.0001, beat);
-        g.gain.exponentialRampToValueAtTime(0.4, beat + 0.01);
-        g.gain.exponentialRampToValueAtTime(0.0001, beat + 0.2);
+        g.gain.linearRampToValueAtTime(0.02, beat + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001, beat + 0.08);
         o.connect(g).connect(masterGain);
         o.start(beat);
-        o.stop(beat + 0.25);
+        o.stop(beat + 0.1);
         beats.push(o);
-        beat += 0.6;
+        beat += 1.0;
+        tickCount++;
       }
     };
     scheduleBeats();

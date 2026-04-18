@@ -320,6 +320,12 @@ body::before {
   opacity: 0.6;
 }
 .rung.passed .rung-pts::before { content: '✓ '; }
+.rung.failed {
+  color: var(--crimson);
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+.rung.failed .rung-pts::before { content: '✗ '; }
 .rung.current {
   background: linear-gradient(90deg, var(--gold-500), var(--gold-400));
   color: var(--navy-900);
