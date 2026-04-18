@@ -64,25 +64,8 @@ window.QuizAudio = (function() {
     stopTension();
     ensureCtx();
     const now = ctx.currentTime;
-    // Low pulsing drone with heartbeat
-    const drone = ctx.createOscillator();
-    const droneG = ctx.createGain();
-    drone.type = 'sawtooth';
-    drone.frequency.value = 55;
-    droneG.gain.value = 0.05;
-    drone.connect(droneG).connect(masterGain);
 
-    const drone2 = ctx.createOscillator();
-    drone2.type = 'sine';
-    drone2.frequency.value = 82.41;
-    const drone2G = ctx.createGain();
-    drone2G.gain.value = 0.04;
-    drone2.connect(drone2G).connect(masterGain);
-
-    drone.start(now);
-    drone2.start(now);
-
-    // Ticking clock - one tick per second
+    // Ticking clock only - clean tick-tock, no drone
     let beat = now + 1.0;
     const beats = [];
     let tickCount = 0;
@@ -107,14 +90,12 @@ window.QuizAudio = (function() {
     scheduleBeats();
     const interval = setInterval(scheduleBeats, 2000);
 
-    tensionNodes = { drone, drone2, interval };
+    tensionNodes = { interval };
   }
 
   function stopTension() {
     if (!tensionNodes) return;
     try {
-      tensionNodes.drone.stop();
-      tensionNodes.drone2.stop();
       clearInterval(tensionNodes.interval);
     } catch (e) {}
     tensionNodes = null;
